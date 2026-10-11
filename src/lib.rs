@@ -1,4 +1,23 @@
+use std::{error, fmt};
+
 const MARKER: u8 = 0xFF;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DecompressError {
+    Truncated,
+    ZeroCount,
+}
+
+impl fmt::Display for DecompressError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecompressError::Truncated => write!(f, "stream truncated"),
+            DecompressError::ZeroCount => write!(f, "run with zero count"),
+        }
+    }
+}
+
+impl error::Error for DecompressError {}
 
 pub fn compress(bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
@@ -25,7 +44,7 @@ pub fn compress(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-pub fn decompress(bytes: &[u8]) -> Vec<u8> {
+pub fn decompress(bytes: &[u8]) -> Result<Vec<u8>, DecompressError> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
@@ -34,15 +53,22 @@ pub fn decompress(bytes: &[u8]) -> Vec<u8> {
             out.push(b);
             i += 1;
         } else {
-            let count = bytes[i+1];
-            let byte = bytes[i+2];
-            for _ in 0..count {
-                out.push(byte);
+            if i + 2 < bytes.len() {
+                let count = bytes[i + 1];
+                if count == 0 {
+                    return Err(DecompressError::ZeroCount)
+                }
+                let byte = bytes[i + 2];
+                for _ in 0..count {
+                    out.push(byte);
+                }
+                i += 3;
+            } else {
+                return Err(DecompressError::Truncated)
             }
-            i += 3;
         }
     }
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -51,7 +77,7 @@ mod tests {
 
     fn trip(original: &[u8]) {
         let compressed = compress(original);
-        let restored = decompress(&compressed);
+        let restored = decompress(&compressed).unwrap();
         assert_eq!(restored, original);
     }
 
@@ -96,5 +122,10 @@ mod tests {
     fn random_bytes() {
         let data: Vec<u8> = (0..1000).map(|_| rand::random::<u8>()).collect();
         trip(&data);
+    }
+
+    #[test]
+    fn badtest() {
+        trip(&[0xFF]);
     }
 }
