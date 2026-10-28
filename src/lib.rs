@@ -1,3 +1,4 @@
+pub mod bits;
 use std::{error, fmt};
 
 const MARKER: u8 = 0xFF;
@@ -73,7 +74,9 @@ pub fn decompress(bytes: &[u8]) -> Result<Vec<u8>, DecompressError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compress, decompress};
+    use crate::bits::{BitReader, BitReaderError, BitWriter};
+
+use super::{compress, decompress};
 
     fn trip(original: &[u8]) {
         let compressed = compress(original);
@@ -128,4 +131,46 @@ mod tests {
     fn badtest() {
         trip(&[0xFF]);
     }
+
+    #[test]
+    fn bitwritertest() {
+        let mut bw = BitWriter::new();
+        bw.write_bits(1,1);
+        bw.write_bits(0b01,2);
+        bw.write_bits(0b1111,4);
+        bw.write_bits(0,1);
+        bw.write_bits(0b11,2);
+        let output = bw.finish();
+        assert_eq!(output, [0xBE, 0xC0]);
+    }
+
+    #[test]
+    fn bitreaderwritertest() {
+        let mut bw = BitWriter::new();
+        bw.write_bits(0b101, 3);
+        bw.write_bits(0b11, 2);
+        let output = bw.finish();
+        let mut br = BitReader::new(&output);
+        assert_eq!(br.read_bits(3).unwrap(), 0b101);
+        assert_eq!(br.read_bits(2).unwrap(), 0b11);
+    }
+
+    #[test]
+    fn read_from_empty_fails() {
+        let mut reader = BitReader::new(&[]);
+        assert_eq!(reader.read_bit(), Err(BitReaderError::End));
+    }
+
+    #[test]
+    fn read_past_end_fails() {
+        // 1 byte = 8 bits, so asking for 9 must fail
+        let mut reader = BitReader::new(&[0xFF]);
+        assert_eq!(reader.read_bits(9), Err(BitReaderError::End));
+
+        // exactly 8 bits is fine, but the next bit is past the end
+        let mut reader = BitReader::new(&[0xFF]);
+        assert_eq!(reader.read_bits(8), Ok(0xFF));
+        assert_eq!(reader.read_bit(), Err(BitReaderError::End));
+    }
+
 }
