@@ -1,4 +1,5 @@
 pub mod bits;
+pub mod huffman;
 use std::{error, fmt};
 
 const MARKER: u8 = 0xFF;
