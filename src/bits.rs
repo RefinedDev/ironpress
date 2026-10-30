@@ -74,7 +74,7 @@ impl<'a> BitReader<'a> {
         let mut value: u32 = 0;
         for _ in 0..count {
             let bit = self.read_bit()? as u32;
-            value = (value << 1) | bit;
+            value = (value << 1) | bit; // equivalent to value |= bit << (count - 1 - i) if _ was i
         }
         Ok(value)
     }
